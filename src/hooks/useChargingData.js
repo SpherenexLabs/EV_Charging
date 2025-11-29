@@ -6,14 +6,13 @@ export const useStationData = (stationNum) => {
     const { value: currentFromDB } = useFirebaseValue(`Quick_Charging_Station/Current${stationNum}`);
     const { value: stationStatus } = useFirebaseValue(`Quick_Charging_Station/Station${stationNum}`);
     const { value: quickStatus } = useFirebaseValue('Quick_Charging_Station/Quick');
-    const { value: status } = useFirebaseValue('Quick_Charging_Station/Status');
 
     const [history, setHistory] = useState({ voltage: [], current: [], labels: [] });
     const [displayCurrent, setDisplayCurrent] = useState(0);
 
     // Determine charging states
     const isQuickCharging = quickStatus === String(stationNum);
-    const isOccupied = status === "1" && !isQuickCharging;
+    const isOccupied = stationStatus === "1" && !isQuickCharging;
 
     // Handle current value based on status
     useEffect(() => {
