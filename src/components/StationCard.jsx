@@ -9,7 +9,7 @@ const StationCard = ({ stationNum, voltage, current, isOccupied, isQuickCharging
     };
 
     const getStatusText = () => {
-        if (isQuickCharging) return '⚡ Quick Charging';
+        if (isQuickCharging) return '⚡ Charging';
         if (isOccupied) return '🔴 Occupied';
         return '🟢 Available';
     };
