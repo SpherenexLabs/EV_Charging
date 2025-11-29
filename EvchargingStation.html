@@ -1,0 +1,698 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EV Charging Station Dashboard</title>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .dashboard-header {
+            text-align: center;
+            color: white;
+            margin-bottom: 30px;
+        }
+
+        .dashboard-header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+        }
+
+        .dashboard-header p {
+            font-size: 1.1em;
+            opacity: 0.9;
+        }
+
+        .dashboard-container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .stations-section,
+        .cars-section {
+            margin-bottom: 30px;
+        }
+
+        .section-title {
+            color: white;
+            font-size: 1.8em;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .section-title::before {
+            content: '';
+            width: 5px;
+            height: 30px;
+            background: #ffd700;
+            border-radius: 5px;
+        }
+
+        .grid-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 20px;
+        }
+
+        .card {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 40px rgba(0, 0, 0, 0.4);
+        }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #f0f0f0;
+        }
+
+        .card-title {
+            font-size: 1.5em;
+            font-weight: bold;
+            color: #333;
+        }
+
+        .status-badge {
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 0.9em;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .status-available {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .status-occupied {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .status-quick {
+            background: #fff3cd;
+            color: #856404;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.7;
+            }
+        }
+
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .metric {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 15px;
+            border-radius: 10px;
+            color: white;
+        }
+
+        .metric-label {
+            font-size: 0.85em;
+            opacity: 0.9;
+            margin-bottom: 5px;
+        }
+
+        .metric-value {
+            font-size: 1.8em;
+            font-weight: bold;
+        }
+
+        .metric-unit {
+            font-size: 0.6em;
+            opacity: 0.9;
+            margin-left: 5px;
+        }
+
+        .battery-container {
+            margin-bottom: 20px;
+        }
+
+        .battery-label {
+            font-size: 1.1em;
+            color: #333;
+            margin-bottom: 10px;
+            font-weight: 600;
+        }
+
+        .battery-bar {
+            width: 100%;
+            height: 40px;
+            background: #e0e0e0;
+            border-radius: 10px;
+            overflow: hidden;
+            position: relative;
+            border: 2px solid #ccc;
+        }
+
+        .battery-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #4CAF50 0%, #8BC34A 100%);
+            transition: width 0.5s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            font-size: 1.1em;
+        }
+
+        .battery-fill.low {
+            background: linear-gradient(90deg, #f44336 0%, #e91e63 100%);
+        }
+
+        .battery-fill.medium {
+            background: linear-gradient(90deg, #ff9800 0%, #ffc107 100%);
+        }
+
+        .chart-container {
+            height: 200px;
+            margin-top: 15px;
+        }
+
+        .last-update {
+            text-align: center;
+            color: white;
+            margin-top: 20px;
+            font-size: 0.9em;
+            opacity: 0.8;
+        }
+
+        .connection-status {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 10px 20px;
+            border-radius: 20px;
+            background: #4CAF50;
+            color: white;
+            font-weight: 600;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+        }
+
+        .connection-status.disconnected {
+            background: #f44336;
+        }
+
+        @media (max-width: 768px) {
+            .grid-container {
+                grid-template-columns: 1fr;
+            }
+
+            .dashboard-header h1 {
+                font-size: 1.8em;
+            }
+
+            .section-title {
+                font-size: 1.4em;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="connection-status" id="connectionStatus">● Connected</div>
+
+    <div class="dashboard-header">
+        <h1>⚡ EV Charging Station Dashboard</h1>
+        <p>Real-time monitoring and analytics</p>
+    </div>
+
+    <div class="dashboard-container">
+        <!-- Charging Stations Section -->
+        <div class="stations-section">
+            <h2 class="section-title">Charging Stations</h2>
+            <div class="grid-container">
+                <!-- Station 1 -->
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-title">🔌 Station 1</div>
+                        <div class="status-badge" id="station1Status">Available</div>
+                    </div>
+                    <div class="metrics-grid">
+                        <div class="metric">
+                            <div class="metric-label">Voltage</div>
+                            <div class="metric-value">
+                                <span id="station1Voltage">0</span>
+                                <span class="metric-unit">V</span>
+                            </div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-label">Current</div>
+                            <div class="metric-value">
+                                <span id="station1Current">0</span>
+                                <span class="metric-unit">A</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="station1Chart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Station 2 -->
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-title">🔌 Station 2</div>
+                        <div class="status-badge" id="station2Status">Available</div>
+                    </div>
+                    <div class="metrics-grid">
+                        <div class="metric">
+                            <div class="metric-label">Voltage</div>
+                            <div class="metric-value">
+                                <span id="station2Voltage">0</span>
+                                <span class="metric-unit">V</span>
+                            </div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-label">Current</div>
+                            <div class="metric-value">
+                                <span id="station2Current">0</span>
+                                <span class="metric-unit">A</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="station2Chart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Cars Section -->
+        <div class="cars-section">
+            <h2 class="section-title">Vehicle Status</h2>
+            <div class="grid-container">
+                <!-- Car 1 -->
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-title">🚗 Car 1</div>
+                    </div>
+                    <div class="battery-container">
+                        <div class="battery-label">Battery Level</div>
+                        <div class="battery-bar">
+                            <div class="battery-fill" id="car1BatteryBar">
+                                <span id="car1BatteryText">0%</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="metrics-grid">
+                        <div class="metric">
+                            <div class="metric-label">Voltage</div>
+                            <div class="metric-value">
+                                <span id="car1Voltage">0</span>
+                                <span class="metric-unit">V</span>
+                            </div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-label">Current</div>
+                            <div class="metric-value">
+                                <span id="car1Current">0</span>
+                                <span class="metric-unit">A</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="car1Chart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Car 2 -->
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-title">🚗 Car 2</div>
+                    </div>
+                    <div class="battery-container">
+                        <div class="battery-label">Battery Level</div>
+                        <div class="battery-bar">
+                            <div class="battery-fill" id="car2BatteryBar">
+                                <span id="car2BatteryText">0%</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="metrics-grid">
+                        <div class="metric">
+                            <div class="metric-label">Voltage</div>
+                            <div class="metric-value">
+                                <span id="car2Voltage">0</span>
+                                <span class="metric-unit">V</span>
+                            </div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-label">Current</div>
+                            <div class="metric-value">
+                                <span id="car2Current">0</span>
+                                <span class="metric-unit">A</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="car2Chart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="last-update">
+            Last updated: <span id="lastUpdate">--</span>
+        </div>
+    </div>
+
+    <script>
+        // Firebase Configuration
+        const firebaseConfig = {
+            apiKey: "YOUR_API_KEY",
+            authDomain: "intel-gesture.firebaseapp.com",
+            databaseURL: "https://intel-gesture-default-rtdb.firebaseio.com",
+            projectId: "intel-gesture",
+            storageBucket: "intel-gesture.appspot.com",
+            messagingSenderId: "YOUR_SENDER_ID",
+            appId: "YOUR_APP_ID"
+        };
+
+        // Initialize Firebase
+        firebase.initializeApp(firebaseConfig);
+        const database = firebase.database();
+
+        // Chart configurations
+        const chartOptions = {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: true,
+                    position: 'bottom'
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true
+                }
+            }
+        };
+
+        // Initialize charts
+        const station1Chart = new Chart(document.getElementById('station1Chart'), {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [{
+                    label: 'Voltage (V)',
+                    data: [],
+                    borderColor: '#667eea',
+                    backgroundColor: 'rgba(102, 126, 234, 0.1)',
+                    tension: 0.4
+                }, {
+                    label: 'Current (A)',
+                    data: [],
+                    borderColor: '#764ba2',
+                    backgroundColor: 'rgba(118, 75, 162, 0.1)',
+                    tension: 0.4
+                }]
+            },
+            options: chartOptions
+        });
+
+        const station2Chart = new Chart(document.getElementById('station2Chart'), {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [{
+                    label: 'Voltage (V)',
+                    data: [],
+                    borderColor: '#667eea',
+                    backgroundColor: 'rgba(102, 126, 234, 0.1)',
+                    tension: 0.4
+                }, {
+                    label: 'Current (A)',
+                    data: [],
+                    borderColor: '#764ba2',
+                    backgroundColor: 'rgba(118, 75, 162, 0.1)',
+                    tension: 0.4
+                }]
+            },
+            options: chartOptions
+        });
+
+        const car1Chart = new Chart(document.getElementById('car1Chart'), {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [{
+                    label: 'Battery (%)',
+                    data: [],
+                    borderColor: '#4CAF50',
+                    backgroundColor: 'rgba(76, 175, 80, 0.1)',
+                    tension: 0.4
+                }]
+            },
+            options: chartOptions
+        });
+
+        const car2Chart = new Chart(document.getElementById('car2Chart'), {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [{
+                    label: 'Battery (%)',
+                    data: [],
+                    borderColor: '#4CAF50',
+                    backgroundColor: 'rgba(76, 175, 80, 0.1)',
+                    tension: 0.4
+                }]
+            },
+            options: chartOptions
+        });
+
+        // Data storage for charts
+        const maxDataPoints = 20;
+        let dataHistory = {
+            station1: { voltage: [], current: [], labels: [] },
+            station2: { voltage: [], current: [], labels: [] },
+            car1: { battery: [], labels: [] },
+            car2: { battery: [], labels: [] }
+        };
+
+        function updateChart(chart, labels, ...datasets) {
+            chart.data.labels = labels;
+            datasets.forEach((data, index) => {
+                chart.data.datasets[index].data = data;
+            });
+            chart.update('none');
+        }
+
+        function addDataPoint(historyObj, ...values) {
+            const time = new Date().toLocaleTimeString();
+            historyObj.labels.push(time);
+            Object.keys(historyObj).forEach((key, index) => {
+                if (key !== 'labels') {
+                    historyObj[key].push(values[index]);
+                }
+            });
+
+            // Keep only last maxDataPoints
+            if (historyObj.labels.length > maxDataPoints) {
+                historyObj.labels.shift();
+                Object.keys(historyObj).forEach(key => {
+                    if (key !== 'labels') historyObj[key].shift();
+                });
+            }
+        }
+
+        function updateBattery(carNum, percentage) {
+            const bar = document.getElementById(`car${carNum}BatteryBar`);
+            const text = document.getElementById(`car${carNum}BatteryText`);
+
+            bar.style.width = percentage + '%';
+            text.textContent = percentage + '%';
+
+            // Update color based on level
+            bar.classList.remove('low', 'medium');
+            if (percentage < 30) {
+                bar.classList.add('low');
+            } else if (percentage < 70) {
+                bar.classList.add('medium');
+            }
+        }
+
+        function updateStationStatus(stationNum, occupied, quickCharging) {
+            const statusElement = document.getElementById(`station${stationNum}Status`);
+            statusElement.classList.remove('status-available', 'status-occupied', 'status-quick');
+
+            if (quickCharging) {
+                statusElement.textContent = '⚡ Quick Charging';
+                statusElement.classList.add('status-quick');
+            } else if (occupied) {
+                statusElement.textContent = '🔴 Occupied';
+                statusElement.classList.add('status-occupied');
+            } else {
+                statusElement.textContent = '🟢 Available';
+                statusElement.classList.add('status-available');
+            }
+        }
+
+        // Firebase listeners
+        const dbRef = database.ref('Quick_Charging_Station');
+
+        // Station 1 listeners
+        dbRef.child('Voltage1').on('value', (snapshot) => {
+            const value = snapshot.val() || 0;
+            document.getElementById('station1Voltage').textContent = value.toFixed(2);
+        });
+
+        dbRef.child('Current1').on('value', (snapshot) => {
+            const value = snapshot.val() || 0;
+            document.getElementById('station1Current').textContent = value.toFixed(2);
+            updateLastUpdate();
+        });
+
+        // Station 2 listeners
+        dbRef.child('Voltage2').on('value', (snapshot) => {
+            const value = snapshot.val() || 0;
+            document.getElementById('station2Voltage').textContent = value.toFixed(2);
+        });
+
+        dbRef.child('Current2').on('value', (snapshot) => {
+            const value = snapshot.val() || 0;
+            document.getElementById('station2Current').textContent = value.toFixed(2);
+            updateLastUpdate();
+        });
+
+        // Station status listeners
+        dbRef.child('Station1').on('value', (snapshot) => {
+            const occupied = snapshot.val() === "1";
+            dbRef.child('Quick').once('value', (quickSnap) => {
+                const quickCharging = quickSnap.val() === "1";
+                updateStationStatus("1", occupied, quickCharging);
+            });
+        });
+
+        dbRef.child('Station2').on('value', (snapshot) => {
+            const occupied = snapshot.val() === "1";
+            dbRef.child('Quick').once('value', (quickSnap) => {
+                const quickCharging = quickSnap.val() === "2";
+                updateStationStatus("2", occupied, quickCharging);
+            });
+        });
+
+        // Car 1 listeners
+        dbRef.child('Battery1').on('value', (snapshot) => {
+            const value = snapshot.val() || 0;
+            updateBattery(1, value);
+
+            // Update chart
+            addDataPoint(dataHistory.car1, value);
+            updateChart(car1Chart, dataHistory.car1.labels, dataHistory.car1.battery);
+        });
+
+        dbRef.child('Car1V').on('value', (snapshot) => {
+            const value = snapshot.val() || 0;
+            document.getElementById('car1Voltage').textContent = value.toFixed(2);
+        });
+
+        dbRef.child('Car1C').on('value', (snapshot) => {
+            const value = snapshot.val() || 0;
+            document.getElementById('car1Current').textContent = value.toFixed(2);
+        });
+
+        // Car 2 listeners
+        dbRef.child('Battery2').on('value', (snapshot) => {
+            const value = snapshot.val() || 0;
+            updateBattery(2, value);
+
+            // Update chart
+            addDataPoint(dataHistory.car2, value);
+            updateChart(car2Chart, dataHistory.car2.labels, dataHistory.car2.battery);
+        });
+
+        dbRef.child('Car2V').on('value', (snapshot) => {
+            const value = snapshot.val() || 0;
+            document.getElementById('car2Voltage').textContent = value.toFixed(2);
+        });
+
+        dbRef.child('Car2C').on('value', (snapshot) => {
+            const value = snapshot.val() || 0;
+            document.getElementById('car2Current').textContent = value.toFixed(2);
+        });
+
+        // Update station charts periodically
+        setInterval(() => {
+            const v1 = parseFloat(document.getElementById('station1Voltage').textContent);
+            const c1 = parseFloat(document.getElementById('station1Current').textContent);
+            addDataPoint(dataHistory.station1, v1, c1);
+            updateChart(station1Chart, dataHistory.station1.labels,
+                dataHistory.station1.voltage, dataHistory.station1.current);
+
+            const v2 = parseFloat(document.getElementById('station2Voltage').textContent);
+            const c2 = parseFloat(document.getElementById('station2Current').textContent);
+            addDataPoint(dataHistory.station2, v2, c2);
+            updateChart(station2Chart, dataHistory.station2.labels,
+                dataHistory.station2.voltage, dataHistory.station2.current);
+        }, 3000);
+
+        // Connection status
+        const connectedRef = database.ref('.info/connected');
+        connectedRef.on('value', (snapshot) => {
+            const status = document.getElementById('connectionStatus');
+            if (snapshot.val() === true) {
+                status.textContent = '● Connected';
+                status.classList.remove('disconnected');
+            } else {
+                status.textContent = '● Disconnected';
+                status.classList.add('disconnected');
+            }
+        });
+
+        function updateLastUpdate() {
+            document.getElementById('lastUpdate').textContent = new Date().toLocaleString();
+        }
+
+        // Initial update
+        updateLastUpdate();
+    </script>
+</body>
+
+</html>
